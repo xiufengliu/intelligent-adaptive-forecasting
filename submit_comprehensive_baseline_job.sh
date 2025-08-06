@@ -34,7 +34,8 @@ python3 --version
 
 # Install/upgrade required packages for FRESH baseline experiments
 echo "Installing/upgrading packages for FRESH experiments..."
-pip install numpy pandas scikit-learn scipy matplotlib seaborn tqdm statsmodels torch torchvision
+pip install Cython numpy
+pip install pandas scikit-learn scipy matplotlib seaborn tqdm statsmodels torch torchvision
 pip install pmdarima prophet  # For ARIMA and Prophet baselines
 echo "Note: Installing ALL required packages for complete baseline comparison"
 
