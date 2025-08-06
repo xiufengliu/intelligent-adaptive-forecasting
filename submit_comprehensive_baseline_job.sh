@@ -32,11 +32,16 @@ echo "Using local conda Python environment..."
 which python3
 python3 --version
 
+# Create a new conda environment
+conda create -n fresh_exp python=3.10 -y
+
+# Activate the conda environment
+source activate fresh_exp
+
 # Install/upgrade required packages for FRESH baseline experiments
 echo "Installing/upgrading packages for FRESH experiments..."
-pip install Cython numpy
-pip install pandas scikit-learn scipy matplotlib seaborn tqdm statsmodels torch torchvision
-pip install pmdarima prophet  # For ARIMA and Prophet baselines
+conda install -c conda-forge numpy pandas scikit-learn scipy matplotlib seaborn tqdm statsmodels pytorch torchvision -y
+conda install -c conda-forge pmdarima prophet -y
 echo "Note: Installing ALL required packages for complete baseline comparison"
 
 # Verify Python environment for FRESH experiments
