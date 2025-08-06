@@ -22,10 +22,10 @@ echo "=========================================="
 module load cuda/12.1 2>/dev/null || echo "CUDA module not available"
 
 # Set environment variables
-export PYTHONPATH="${PYTHONPATH}:/zhome/bb/9/101964/xiuli/dynamic_info_lattices"
+export PYTHONPATH="${PYTHONPATH}:/zhome/bb/9/101964/xiuli/intelligent-adaptive-forecasting"
 
 # Navigate to project directory
-cd /zhome/bb/9/101964/xiuli/dynamic_info_lattices
+cd /zhome/bb/9/101964/xiuli/intelligent-adaptive-forecasting
 
 # Use local conda environment directly
 echo "Using local conda Python environment..."

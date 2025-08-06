@@ -224,29 +224,16 @@ class ARIMAMethod(BaselineMethod):
     
     def fit(self, train_data: np.ndarray):
         try:
-            # Simple auto ARIMA - try common configurations
-            best_aic = float('inf')
+            # Use a fixed, common order to avoid slow grid search
             best_params = (1, 1, 1)
             
-            for p in range(self.max_p + 1):
-                for d in range(self.max_d + 1):
-                    for q in range(self.max_q + 1):
-                        try:
-                            model = ARIMA(train_data, order=(p, d, q))
-                            fitted = model.fit()
-                            if fitted.aic < best_aic:
-                                best_aic = fitted.aic
-                                best_params = (p, d, q)
-                        except:
-                            continue
-            
-            # Fit best model
+            # Fit the model with the fixed order
             self.model = ARIMA(train_data, order=best_params)
             self.fitted_model = self.model.fit()
             self.is_fitted = True
             
         except Exception as e:
-            # Fallback to naive method
+            # Fallback to naive method if ARIMA fails
             self.last_value = train_data[-1]
             self.is_fitted = True
     
@@ -563,6 +550,319 @@ class TransformerMethod(BaselineMethod):
         except Exception as e:
             return np.full(horizon, self.last_value)
 
+class NBEATSMethod(BaselineMethod):
+    """N-BEATS forecasting method"""
+
+    def __init__(self, seq_len: int = 96, pred_len: int = 24, stack_types=('generic', 'generic'), num_blocks=3, num_layers=4, layer_size=256):
+        super().__init__("N_BEATS")
+        self.seq_len = seq_len
+        self.pred_len = pred_len
+        self.stack_types = stack_types
+        self.num_blocks = num_blocks
+        self.num_layers = num_layers
+        self.layer_size = layer_size
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = None
+        self.scaler_mean = 0
+        self.scaler_std = 1
+
+    def _create_model(self):
+        """Create N-BEATS model"""
+        class NBEATSNet(nn.Module):
+            def __init__(self, seq_len, pred_len, stack_types, num_blocks, num_layers, layer_size):
+                super().__init__()
+                self.pred_len = pred_len
+                self.stacks = nn.ModuleList()
+                for stack_type in stack_types:
+                    self.stacks.append(self.create_stack(seq_len, pred_len, num_blocks, num_layers, layer_size, stack_type))
+
+            def create_stack(self, seq_len, pred_len, num_blocks, num_layers, layer_size, stack_type):
+                blocks = nn.ModuleList()
+                for _ in range(num_blocks):
+                    blocks.append(NBEATSBlock(seq_len, pred_len, num_layers, layer_size, stack_type))
+                return blocks
+
+            def forward(self, x):
+                backcast = x
+                forecast = torch.zeros(x.size(0), self.pred_len).to(x.device)
+                for stack in self.stacks:
+                    for block in stack:
+                        b, f = block(backcast)
+                        backcast = backcast - b
+                        forecast = forecast + f
+                return forecast
+
+        class NBEATSBlock(nn.Module):
+            def __init__(self, seq_len, pred_len, num_layers, layer_size, stack_type):
+                super().__init__()
+                self.stack_type = stack_type
+                self.fc_stack = nn.ModuleList([nn.Linear(seq_len, layer_size)] + [nn.Linear(layer_size, layer_size) for _ in range(num_layers - 1)])
+                self.backcast_linear = nn.Linear(layer_size, seq_len)
+                self.forecast_linear = nn.Linear(layer_size, pred_len)
+
+            def forward(self, x):
+                for layer in self.fc_stack:
+                    x = torch.relu(layer(x))
+                backcast = self.backcast_linear(x)
+                forecast = self.forecast_linear(x)
+                return backcast, forecast
+
+        return NBEATSNet(self.seq_len, self.pred_len, self.stack_types, self.num_blocks, self.num_layers, self.layer_size)
+
+    def fit(self, train_data: np.ndarray):
+        try:
+            self.scaler_mean = np.mean(train_data)
+            self.scaler_std = np.std(train_data) + 1e-8
+            normalized_data = (train_data - self.scaler_mean) / self.scaler_std
+
+            X, y = [], []
+            for i in range(self.seq_len, len(normalized_data) - self.pred_len):
+                X.append(normalized_data[i-self.seq_len:i])
+                y.append(normalized_data[i:i+self.pred_len])
+
+            if len(X) < 10:
+                self.last_value = train_data[-1]
+                self.is_fitted = True
+                return
+
+            X = torch.FloatTensor(X).to(self.device)
+            y = torch.FloatTensor(y).to(self.device)
+
+            self.model = self._create_model().to(self.device)
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+            criterion = nn.MSELoss()
+
+            self.model.train()
+            for epoch in range(50):
+                optimizer.zero_grad()
+                outputs = self.model(X)
+                loss = criterion(outputs, y)
+                loss.backward()
+                optimizer.step()
+
+            self.train_data = normalized_data
+            self.is_fitted = True
+
+        except Exception as e:
+            self.last_value = train_data[-1]
+            self.is_fitted = True
+
+    def predict(self, horizon: int) -> np.ndarray:
+        if not self.is_fitted:
+            raise ValueError("Model must be fitted before prediction")
+
+        if hasattr(self, 'last_value'):
+            return np.full(horizon, self.last_value)
+
+        try:
+            self.model.eval()
+            with torch.no_grad():
+                input_seq = torch.FloatTensor(self.train_data[-self.seq_len:]).unsqueeze(0).to(self.device)
+                predictions = self.model(input_seq).squeeze().cpu().numpy()
+
+            predictions = predictions[:horizon]
+            predictions = predictions * self.scaler_std + self.scaler_mean
+            return predictions
+
+        except Exception as e:
+            return np.full(horizon, self.last_value)
+
+class DeepARMethod(BaselineMethod):
+    """DeepAR forecasting method"""
+
+    def __init__(self, seq_len: int = 96, hidden_size: int = 64, num_layers: int = 2):
+        super().__init__("DeepAR")
+        self.seq_len = seq_len
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = None
+        self.scaler_mean = 0
+        self.scaler_std = 1
+
+    def _create_model(self):
+        """Create DeepAR model"""
+        class DeepARNet(nn.Module):
+            def __init__(self, input_size, hidden_size, num_layers):
+                super().__init__()
+                self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+                self.mean_fc = nn.Linear(hidden_size, 1)
+                self.std_fc = nn.Linear(hidden_size, 1)
+
+            def forward(self, x):
+                lstm_out, _ = self.lstm(x)
+                mean = self.mean_fc(lstm_out[:, -1, :])
+                std = torch.softplus(self.std_fc(lstm_out[:, -1, :]))
+                return mean, std
+
+        return DeepARNet(1, self.hidden_size, self.num_layers)
+
+    def fit(self, train_data: np.ndarray):
+        try:
+            self.scaler_mean = np.mean(train_data)
+            self.scaler_std = np.std(train_data) + 1e-8
+            normalized_data = (train_data - self.scaler_mean) / self.scaler_std
+
+            X, y = [], []
+            for i in range(self.seq_len, len(normalized_data)):
+                X.append(normalized_data[i-self.seq_len:i])
+                y.append(normalized_data[i])
+
+            if len(X) < 10:
+                self.last_value = train_data[-1]
+                self.is_fitted = True
+                return
+
+            X = torch.FloatTensor(X).unsqueeze(-1).to(self.device)
+            y = torch.FloatTensor(y).unsqueeze(-1).to(self.device)
+
+            self.model = self._create_model().to(self.device)
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+
+            self.model.train()
+            for epoch in range(50):
+                optimizer.zero_grad()
+                mean, std = self.model(X)
+                dist = torch.distributions.Normal(mean, std)
+                loss = -dist.log_prob(y).mean()
+                loss.backward()
+                optimizer.step()
+
+            self.train_data = normalized_data
+            self.is_fitted = True
+
+        except Exception as e:
+            self.last_value = train_data[-1]
+            self.is_fitted = True
+
+    def predict(self, horizon: int) -> np.ndarray:
+        if not self.is_fitted:
+            raise ValueError("Model must be fitted before prediction")
+
+        if hasattr(self, 'last_value'):
+            return np.full(horizon, self.last_value)
+
+        try:
+            self.model.eval()
+            predictions = []
+            current_seq = torch.FloatTensor(self.train_data[-self.seq_len:]).unsqueeze(0).unsqueeze(-1).to(self.device)
+
+            with torch.no_grad():
+                for _ in range(horizon):
+                    mean, std = self.model(current_seq)
+                    pred = torch.distributions.Normal(mean, std).sample().item()
+                    predictions.append(pred)
+                    
+                    new_seq = torch.cat([current_seq[:, 1:, :], torch.FloatTensor([[[pred]]]).to(self.device)], dim=1)
+                    current_seq = new_seq
+
+            predictions = np.array(predictions) * self.scaler_std + self.scaler_mean
+            return predictions
+
+        except Exception as e:
+            return np.full(horizon, self.last_value)
+
+class InformerMethod(BaselineMethod):
+    """Informer forecasting method"""
+
+    def __init__(self, seq_len: int = 96, pred_len: int = 24, d_model: int = 64, nhead: int = 4, num_encoder_layers: int = 2, num_decoder_layers: int = 2):
+        super().__init__("Informer")
+        self.seq_len = seq_len
+        self.pred_len = pred_len
+        self.d_model = d_model
+        self.nhead = nhead
+        self.num_encoder_layers = num_encoder_layers
+        self.num_decoder_layers = num_decoder_layers
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = None
+        self.scaler_mean = 0
+        self.scaler_std = 1
+
+    def _create_model(self):
+        """Create Informer model"""
+        class InformerNet(nn.Module):
+            def __init__(self, d_model, nhead, num_encoder_layers, num_decoder_layers):
+                super().__init__()
+                self.transformer = nn.Transformer(
+                    d_model=d_model,
+                    nhead=nhead,
+                    num_encoder_layers=num_encoder_layers,
+                    num_decoder_layers=num_decoder_layers,
+                    dim_feedforward=d_model*4,
+                    dropout=0.1,
+                    batch_first=True
+                )
+                self.input_projection = nn.Linear(1, d_model)
+                self.output_projection = nn.Linear(d_model, 1)
+
+            def forward(self, src, tgt):
+                src = self.input_projection(src)
+                tgt = self.input_projection(tgt)
+                output = self.transformer(src, tgt)
+                return self.output_projection(output)
+
+        return InformerNet(self.d_model, self.nhead, self.num_encoder_layers, self.num_decoder_layers)
+
+    def fit(self, train_data: np.ndarray):
+        try:
+            self.scaler_mean = np.mean(train_data)
+            self.scaler_std = np.std(train_data) + 1e-8
+            normalized_data = (train_data - self.scaler_mean) / self.scaler_std
+
+            X, y = [], []
+            for i in range(self.seq_len, len(normalized_data) - self.pred_len):
+                X.append(normalized_data[i-self.seq_len:i])
+                y.append(normalized_data[i:i+self.pred_len])
+
+            if len(X) < 10:
+                self.last_value = train_data[-1]
+                self.is_fitted = True
+                return
+
+            X = torch.FloatTensor(X).unsqueeze(-1).to(self.device)
+            y = torch.FloatTensor(y).unsqueeze(-1).to(self.device)
+
+            self.model = self._create_model().to(self.device)
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+            criterion = nn.MSELoss()
+
+            self.model.train()
+            for epoch in range(30):
+                optimizer.zero_grad()
+                decoder_input = torch.cat([X[:, -self.pred_len//2:, :], torch.zeros(X.size(0), self.pred_len - self.pred_len//2, 1).to(self.device)], dim=1)
+                outputs = self.model(X, decoder_input)
+                loss = criterion(outputs, y)
+                loss.backward()
+                optimizer.step()
+
+            self.train_data = normalized_data
+            self.is_fitted = True
+
+        except Exception as e:
+            self.last_value = train_data[-1]
+            self.is_fitted = True
+
+    def predict(self, horizon: int) -> np.ndarray:
+        if not self.is_fitted:
+            raise ValueError("Model must be fitted before prediction")
+
+        if hasattr(self, 'last_value'):
+            return np.full(horizon, self.last_value)
+
+        try:
+            self.model.eval()
+            with torch.no_grad():
+                input_seq = torch.FloatTensor(self.train_data[-self.seq_len:]).unsqueeze(0).unsqueeze(-1).to(self.device)
+                decoder_input = torch.cat([input_seq[:, -self.pred_len//2:, :], torch.zeros(1, self.pred_len - self.pred_len//2, 1).to(self.device)], dim=1)
+                predictions = self.model(input_seq, decoder_input).squeeze().cpu().numpy()
+
+            predictions = predictions[:horizon]
+            predictions = predictions * self.scaler_std + self.scaler_mean
+            return predictions
+
+        except Exception as e:
+            return np.full(horizon, self.last_value)
+
 def get_all_baseline_methods():
     """Get all baseline forecasting methods"""
     return {
@@ -574,5 +874,8 @@ def get_all_baseline_methods():
         'ETS': ETSMethod(),
         'Prophet': ProphetMethod(),
         'LSTM': LSTMMethod(),
-        'Transformer': TransformerMethod()
+        'Transformer': TransformerMethod(),
+        'N_BEATS': NBEATSMethod(),
+        'DeepAR': DeepARMethod(),
+        'Informer': InformerMethod()
     }
