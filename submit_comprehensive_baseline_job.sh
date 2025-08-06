@@ -33,6 +33,8 @@ which python3
 python3 --version
 
 # Create a new conda environment
+conda config --add channels conda-forge
+conda config --set channel_priority strict
 conda create -n fresh_exp python=3.10 -y
 
 # Activate the conda environment
@@ -40,8 +42,8 @@ source activate fresh_exp
 
 # Install/upgrade required packages for FRESH baseline experiments
 echo "Installing/upgrading packages for FRESH experiments..."
-conda install -c conda-forge numpy pandas scikit-learn scipy matplotlib seaborn tqdm statsmodels pytorch torchvision -y
-conda install -c conda-forge pmdarima prophet -y
+conda install numpy pandas scikit-learn scipy matplotlib seaborn tqdm statsmodels pytorch torchvision -y
+conda install pmdarima prophet -y
 echo "Note: Installing ALL required packages for complete baseline comparison"
 
 # Verify Python environment for FRESH experiments
