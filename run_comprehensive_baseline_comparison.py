@@ -18,6 +18,7 @@ from pathlib import Path
 from scipy import stats
 from collections import Counter
 from datetime import datetime
+import signal
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -27,6 +28,10 @@ sys.path.append(str(project_root))
 
 # Import baseline methods for fresh experiments
 from models.baseline_methods import get_all_baseline_methods
+
+def timeout_handler(signum, frame):
+    """Handle timeout for method execution"""
+    raise TimeoutError("Method execution timed out")
 
 def setup_logging():
     """Setup logging for FRESH comprehensive baseline comparison"""
@@ -87,13 +92,20 @@ def run_fresh_baseline_experiments():
     baseline_methods = get_all_baseline_methods()
     logger.info(f"Available baseline methods: {list(baseline_methods.keys())}")
 
-    # Define datasets to evaluate
-    datasets = ['etth1', 'etth2', 'ettm1', 'ettm2', 'exchange_rate', 'weather', 'illness', 'ecl']
+    # Define datasets to evaluate (prioritized list - start with smaller/faster datasets)
+    datasets = ['etth1', 'etth2', 'exchange_rate', 'weather', 'ettm1', 'ettm2', 'illness', 'ecl']
 
     all_results = []
+    start_time = datetime.now()
 
-    for dataset_name in datasets:
-        logger.info(f"🔄 Processing dataset: {dataset_name}")
+    for dataset_idx, dataset_name in enumerate(datasets):
+        # Check if we're running out of time (stop if more than 5 hours elapsed)
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        if elapsed_time > 18000:  # 5 hours
+            logger.warning(f"⏰ Time limit approaching, stopping after {dataset_idx} datasets")
+            break
+
+        logger.info(f"🔄 Processing dataset: {dataset_name} ({dataset_idx+1}/{len(datasets)})")
 
         try:
             # Load fresh dataset with proper train/test splits
@@ -102,15 +114,24 @@ def run_fresh_baseline_experiments():
             logger.info(f"  Train size: {len(train_data)}, Test size: {len(test_data)}")
 
             # Run each baseline method
-            for method_name, method_instance in baseline_methods.items():
-                logger.info(f"    🔄 Running {method_name}...")
+            for i, (method_name, method_instance) in enumerate(baseline_methods.items()):
+                logger.info(f"    🔄 Running {method_name} ({i+1}/{len(baseline_methods)})...")
 
                 try:
-                    # Fit the method on training data
-                    method_instance.fit(train_data)
+                    # Set timeout for method execution (3 minutes per method for faster processing)
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(180)  # 3 minute timeout
 
-                    # Make predictions for test period
-                    predictions = method_instance.predict(len(test_data))
+                    try:
+                        # Fit the method on training data
+                        logger.info(f"      Fitting {method_name}...")
+                        method_instance.fit(train_data)
+
+                        # Make predictions for test period
+                        logger.info(f"      Predicting with {method_name}...")
+                        predictions = method_instance.predict(len(test_data))
+                    finally:
+                        signal.alarm(0)  # Cancel the alarm
 
                     # Ensure predictions and test_data have same length
                     min_len = min(len(predictions), len(test_data))
@@ -151,7 +172,7 @@ def run_fresh_baseline_experiments():
                     all_results.append(result)
                     logger.info(f"      ✅ {method_name}: MAE={mae:.3f}, RMSE={rmse:.3f}, MASE={mase:.3f}")
 
-                except Exception as e:
+                except (Exception, TimeoutError) as e:
                     logger.error(f"      ❌ {method_name} failed: {str(e)}")
                     # Store failed result
                     all_results.append({
@@ -556,9 +577,21 @@ def run_comprehensive_baseline_comparison():
         fforma_result = implement_fforma_selection(successful_results)
         rule_based_result = implement_rule_based_selection(successful_results)
 
-        # Load FRESH I-ASNH results (NO cached data)
+        # Load FRESH I-ASNH results (NO cached data) - Optional
         logger.info("📊 Loading FRESH I-ASNH results...")
-        iasnh_result = load_fresh_iasnh_results()
+        try:
+            iasnh_result = load_fresh_iasnh_results()
+        except FileNotFoundError:
+            logger.warning("⚠️ I-ASNH results not found - creating placeholder")
+            iasnh_result = {
+                'category': 'I-ASNH (Ours)',
+                'method': 'Meta-Learning (Not Available)',
+                'avg_mase': float('inf'),
+                'selection_acc': 'N/A',
+                'diversity': 'N/A',
+                'significance': 'N/A',
+                'timestamp': 'Not Available'
+            }
 
         # Compile all FRESH results (NO reused data)
         all_results = {

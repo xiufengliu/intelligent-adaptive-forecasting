@@ -2,10 +2,10 @@
 #BSUB -J fresh_comprehensive_baseline
 #BSUB -o fresh_comprehensive_baseline_%J.out
 #BSUB -e fresh_comprehensive_baseline_%J.err
-#BSUB -q hpc
+#BSUB -q gpuv100
 #BSUB -n 4
 #BSUB -R "rusage[mem=16GB]"
-#BSUB -W 4:00
+#BSUB -W 8:00
 #BSUB -u xiuli@dtu.dk
 #BSUB -N
 
@@ -32,18 +32,10 @@ echo "Using local conda Python environment..."
 which python3
 python3 --version
 
-# Create a new conda environment
-conda config --add channels conda-forge
-conda config --set channel_priority strict
-conda create -n fresh_exp python=3.10 -y
-
-# Activate the conda environment
-source activate fresh_exp
-
 # Install/upgrade required packages for FRESH baseline experiments
 echo "Installing/upgrading packages for FRESH experiments..."
-conda install numpy pandas scikit-learn scipy matplotlib seaborn tqdm statsmodels pytorch torchvision -y
-conda install pmdarima prophet -y
+timeout 300 pip install numpy pandas scikit-learn scipy matplotlib seaborn tqdm statsmodels torch torchvision || echo "Package installation timed out or failed"
+timeout 300 pip install pmdarima prophet || echo "Additional package installation timed out or failed"
 echo "Note: Installing ALL required packages for complete baseline comparison"
 
 # Verify Python environment for FRESH experiments
@@ -68,7 +60,8 @@ echo "❌ REMOVED: RL Agents (synthetic data violates academic integrity)"
 echo "Data: FRESH experimental runs with real datasets"
 echo "=========================================="
 
-python3 run_comprehensive_baseline_comparison.py
+# Run with timeout to prevent hanging (6 hour timeout for comprehensive experiments)
+timeout 21600 python3 run_comprehensive_baseline_comparison.py
 
 # Check if FRESH experiment completed successfully
 if [ $? -eq 0 ]; then

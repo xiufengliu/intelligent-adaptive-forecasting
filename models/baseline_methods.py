@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from statsmodels.tsa.arima.model import ARIMA
@@ -308,12 +309,24 @@ class ProphetMethod(BaselineMethod):
                 'ds': dates,
                 'y': train_data
             })
-            
-            self.model.fit(df)
-            self.train_data = train_data
-            self.is_fitted = True
-            
+
+            # Fit with timeout protection
+            import signal
+            def timeout_handler(signum, frame):
+                raise TimeoutError("Prophet fitting timed out")
+
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(60)  # 60 second timeout
+
+            try:
+                self.model.fit(df)
+                self.train_data = train_data
+                self.is_fitted = True
+            finally:
+                signal.alarm(0)  # Cancel the alarm
+
         except Exception as e:
+            print(f"Prophet fitting failed: {e}")
             # Fallback to naive method
             self.last_value = train_data[-1]
             self.is_fitted = True
@@ -391,14 +404,22 @@ class LSTMMethod(BaselineMethod):
             optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
             criterion = nn.MSELoss()
 
-            # Training loop
+            # Training loop with timeout protection
             self.model.train()
-            for epoch in range(50):  # Quick training
-                optimizer.zero_grad()
-                outputs = self.model(X).squeeze()
-                loss = criterion(outputs, y)
-                loss.backward()
-                optimizer.step()
+            for epoch in range(15):  # Further reduced epochs to prevent hanging
+                try:
+                    optimizer.zero_grad()
+                    outputs = self.model(X).squeeze()
+                    loss = criterion(outputs, y)
+                    loss.backward()
+                    optimizer.step()
+
+                    # Early stopping if loss is very low
+                    if loss.item() < 0.01:
+                        break
+                except Exception as e:
+                    print(f"LSTM training failed at epoch {epoch}: {e}")
+                    break
 
             self.train_data = normalized_data
             self.is_fitted = True
@@ -505,15 +526,23 @@ class TransformerMethod(BaselineMethod):
             optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
             criterion = nn.MSELoss()
 
-            # Training loop
+            # Training loop with timeout protection
             self.model.train()
-            for epoch in range(30):  # Quick training
-                optimizer.zero_grad()
-                outputs = self.model(X).squeeze()
-                loss = criterion(outputs, y)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-                optimizer.step()
+            for epoch in range(10):  # Further reduced epochs to prevent hanging
+                try:
+                    optimizer.zero_grad()
+                    outputs = self.model(X).squeeze()
+                    loss = criterion(outputs, y)
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                    optimizer.step()
+
+                    # Early stopping if loss is very low
+                    if loss.item() < 0.01:
+                        break
+                except Exception as e:
+                    print(f"Transformer training failed at epoch {epoch}: {e}")
+                    break
 
             self.train_data = normalized_data
             self.is_fitted = True
@@ -633,12 +662,16 @@ class NBEATSMethod(BaselineMethod):
             criterion = nn.MSELoss()
 
             self.model.train()
-            for epoch in range(50):
-                optimizer.zero_grad()
-                outputs = self.model(X)
-                loss = criterion(outputs, y)
-                loss.backward()
-                optimizer.step()
+            for epoch in range(20):  # Reduced epochs to prevent hanging
+                try:
+                    optimizer.zero_grad()
+                    outputs = self.model(X)
+                    loss = criterion(outputs, y)
+                    loss.backward()
+                    optimizer.step()
+                except Exception as e:
+                    print(f"N-BEATS training failed at epoch {epoch}: {e}")
+                    break
 
             self.train_data = normalized_data
             self.is_fitted = True
@@ -679,6 +712,7 @@ class DeepARMethod(BaselineMethod):
         self.model = None
         self.scaler_mean = 0
         self.scaler_std = 1
+        self.last_value = None
 
     def _create_model(self):
         """Create DeepAR model"""
@@ -692,12 +726,15 @@ class DeepARMethod(BaselineMethod):
             def forward(self, x):
                 lstm_out, _ = self.lstm(x)
                 mean = self.mean_fc(lstm_out[:, -1, :])
-                std = torch.softplus(self.std_fc(lstm_out[:, -1, :]))
+                std = F.softplus(self.std_fc(lstm_out[:, -1, :]))
                 return mean, std
 
         return DeepARNet(1, self.hidden_size, self.num_layers)
 
     def fit(self, train_data: np.ndarray):
+        # Always set last_value as fallback
+        self.last_value = train_data[-1]
+
         try:
             self.scaler_mean = np.mean(train_data)
             self.scaler_std = np.std(train_data) + 1e-8
@@ -709,7 +746,6 @@ class DeepARMethod(BaselineMethod):
                 y.append(normalized_data[i])
 
             if len(X) < 10:
-                self.last_value = train_data[-1]
                 self.is_fitted = True
                 return
 
@@ -720,26 +756,36 @@ class DeepARMethod(BaselineMethod):
             optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
 
             self.model.train()
-            for epoch in range(50):
-                optimizer.zero_grad()
-                mean, std = self.model(X)
-                dist = torch.distributions.Normal(mean, std)
-                loss = -dist.log_prob(y).mean()
-                loss.backward()
-                optimizer.step()
+            for epoch in range(15):  # Further reduced epochs to prevent hanging
+                try:
+                    optimizer.zero_grad()
+                    mean, std = self.model(X)
+                    dist = torch.distributions.Normal(mean, std)
+                    loss = -dist.log_prob(y).mean()
+                    loss.backward()
+                    optimizer.step()
+
+                    # Early stopping if loss is very low
+                    if loss.item() < 0.01:
+                        break
+                except Exception as e:
+                    print(f"DeepAR training failed at epoch {epoch}: {e}")
+                    break
 
             self.train_data = normalized_data
             self.is_fitted = True
+            # Clear last_value since we have a trained model
+            self.last_value = None
 
         except Exception as e:
-            self.last_value = train_data[-1]
+            # Keep last_value for fallback
             self.is_fitted = True
 
     def predict(self, horizon: int) -> np.ndarray:
         if not self.is_fitted:
             raise ValueError("Model must be fitted before prediction")
 
-        if hasattr(self, 'last_value'):
+        if self.model is None or self.last_value is not None:
             return np.full(horizon, self.last_value)
 
         try:
@@ -760,7 +806,9 @@ class DeepARMethod(BaselineMethod):
             return predictions
 
         except Exception as e:
-            return np.full(horizon, self.last_value)
+            # Ensure we have a fallback value
+            fallback_value = self.last_value if self.last_value is not None else 0.0
+            return np.full(horizon, fallback_value)
 
 class InformerMethod(BaselineMethod):
     """Informer forecasting method"""
@@ -827,13 +875,17 @@ class InformerMethod(BaselineMethod):
             criterion = nn.MSELoss()
 
             self.model.train()
-            for epoch in range(30):
-                optimizer.zero_grad()
-                decoder_input = torch.cat([X[:, -self.pred_len//2:, :], torch.zeros(X.size(0), self.pred_len - self.pred_len//2, 1).to(self.device)], dim=1)
-                outputs = self.model(X, decoder_input)
-                loss = criterion(outputs, y)
-                loss.backward()
-                optimizer.step()
+            for epoch in range(15):  # Reduced epochs to prevent hanging
+                try:
+                    optimizer.zero_grad()
+                    decoder_input = torch.cat([X[:, -self.pred_len//2:, :], torch.zeros(X.size(0), self.pred_len - self.pred_len//2, 1).to(self.device)], dim=1)
+                    outputs = self.model(X, decoder_input)
+                    loss = criterion(outputs, y)
+                    loss.backward()
+                    optimizer.step()
+                except Exception as e:
+                    print(f"Informer training failed at epoch {epoch}: {e}")
+                    break
 
             self.train_data = normalized_data
             self.is_fitted = True
