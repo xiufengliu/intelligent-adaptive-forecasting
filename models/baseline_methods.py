@@ -13,6 +13,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.exponential_smoothing.ets import ETSModel
 from prophet import Prophet
+from typing import Optional
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -253,56 +254,133 @@ class ARIMAMethod(BaselineMethod):
             return np.full(horizon, self.fitted_model.fittedvalues[-1])
 
 class ETSMethod(BaselineMethod):
-    """Exponential Smoothing (ETS) method"""
-    
+    """Exponential Smoothing (ETS) method with adaptive seasonal period detection"""
+
     def __init__(self):
         super().__init__("ETS")
         self.fitted_model = None
-    
-    def fit(self, train_data: np.ndarray):
-        try:
-            model = ETSModel(train_data, error='add', trend='add', seasonal='add', seasonal_periods=24)
-            self.fitted_model = model.fit()
-            self.is_fitted = True
-        except:
+        self.last_value = None
+
+    def _detect_seasonal_period(self, data: np.ndarray) -> Optional[int]:
+        """Detect seasonal period using autocorrelation"""
+        if len(data) < 48:  # Need sufficient data
+            return None
+
+        # Test common seasonal periods
+        candidates = [24, 12, 7, 4]  # hourly, 12-hour, weekly, quarterly patterns
+        max_period = min(len(data) // 3, 52)  # Don't exceed 1/3 of data length
+
+        best_period = None
+        best_score = 0
+
+        for period in candidates:
+            if period >= max_period:
+                continue
+
             try:
-                # Try simpler model
-                model = ETSModel(train_data, error='add', trend='add', seasonal=None)
-                self.fitted_model = model.fit()
-                self.is_fitted = True
+                # Calculate autocorrelation at this lag
+                if len(data) > period * 2:
+                    autocorr = np.corrcoef(data[:-period], data[period:])[0, 1]
+                    if not np.isnan(autocorr) and autocorr > best_score and autocorr > 0.3:
+                        best_score = autocorr
+                        best_period = period
             except:
-                # Fallback to naive
-                self.last_value = train_data[-1]
+                continue
+
+        return best_period
+
+    def fit(self, train_data: np.ndarray):
+        self.last_value = train_data[-1]  # Always set fallback
+
+        try:
+            # Detect seasonal period
+            seasonal_period = self._detect_seasonal_period(train_data)
+
+            if seasonal_period and len(train_data) >= seasonal_period * 3:
+                # Try seasonal model
+                try:
+                    model = ETSModel(train_data, error='add', trend='add', seasonal='add',
+                                   seasonal_periods=seasonal_period)
+                    self.fitted_model = model.fit(maxiter=100, disp=False)
+                    self.is_fitted = True
+                    self.last_value = None  # Clear fallback since we have a model
+                    return
+                except:
+                    pass
+
+            # Try trend-only model
+            try:
+                model = ETSModel(train_data, error='add', trend='add', seasonal=None)
+                self.fitted_model = model.fit(maxiter=100, disp=False)
                 self.is_fitted = True
-    
+                self.last_value = None  # Clear fallback since we have a model
+                return
+            except:
+                pass
+
+            # Try simple exponential smoothing
+            try:
+                model = ETSModel(train_data, error='add', trend=None, seasonal=None)
+                self.fitted_model = model.fit(maxiter=100, disp=False)
+                self.is_fitted = True
+                self.last_value = None  # Clear fallback since we have a model
+                return
+            except:
+                pass
+
+        except Exception as e:
+            pass
+
+        # If all else fails, use fallback
+        self.is_fitted = True
+
     def predict(self, horizon: int) -> np.ndarray:
         if not self.is_fitted:
             raise ValueError("Model must be fitted before prediction")
-        
-        if hasattr(self, 'last_value'):  # Fallback case
+
+        # Use fallback if no model was fitted
+        if self.fitted_model is None or self.last_value is not None:
             return np.full(horizon, self.last_value)
-        
+
         try:
             forecast = self.fitted_model.forecast(steps=horizon)
-            return forecast.values if hasattr(forecast, 'values') else forecast
-        except:
-            return np.full(horizon, self.fitted_model.fittedvalues[-1])
+            predictions = forecast.values if hasattr(forecast, 'values') else forecast
+
+            # Sanity check predictions
+            if np.any(np.isnan(predictions)) or np.any(np.isinf(predictions)):
+                return np.full(horizon, self.last_value)
+
+            return predictions
+        except Exception as e:
+            # Fallback to last fitted value or naive prediction
+            try:
+                last_fitted = self.fitted_model.fittedvalues[-1]
+                return np.full(horizon, last_fitted)
+            except:
+                return np.full(horizon, self.last_value)
 
 class ProphetMethod(BaselineMethod):
     """Facebook Prophet forecasting method"""
-    
+
     def __init__(self):
         super().__init__("Prophet")
-        self.model = Prophet(
-            daily_seasonality=True,
-            weekly_seasonality=False,
-            yearly_seasonality=False,
-            interval_width=0.8
-        )
+        self.model = None  # Initialize as None, create fresh for each fit
         self.train_data = None
+        self.last_value = None
     
     def fit(self, train_data: np.ndarray):
+        self.last_value = train_data[-1]  # Always set fallback
+
         try:
+            # Create fresh Prophet model for each fit
+            self.model = Prophet(
+                daily_seasonality=True,
+                weekly_seasonality=False,
+                yearly_seasonality=False,
+                interval_width=0.8,
+                uncertainty_samples=0  # Disable uncertainty for speed
+            )
+
             # Prepare data for Prophet
             dates = pd.date_range(start='2020-01-01', periods=len(train_data), freq='H')
             df = pd.DataFrame({
@@ -316,39 +394,46 @@ class ProphetMethod(BaselineMethod):
                 raise TimeoutError("Prophet fitting timed out")
 
             signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(60)  # 60 second timeout
+            signal.alarm(30)  # Reduced timeout to 30 seconds
 
             try:
                 self.model.fit(df)
                 self.train_data = train_data
                 self.is_fitted = True
+                self.last_value = None  # Clear fallback since we have a model
             finally:
                 signal.alarm(0)  # Cancel the alarm
 
         except Exception as e:
-            print(f"Prophet fitting failed: {e}")
-            # Fallback to naive method
-            self.last_value = train_data[-1]
+            # Keep fallback value for prediction
+            self.model = None
             self.is_fitted = True
     
     def predict(self, horizon: int) -> np.ndarray:
         if not self.is_fitted:
             raise ValueError("Model must be fitted before prediction")
-        
-        if hasattr(self, 'last_value'):  # Fallback case
+
+        # Use fallback if no model was fitted
+        if self.model is None or self.last_value is not None:
             return np.full(horizon, self.last_value)
-        
+
         try:
             # Create future dataframe
             last_date = pd.date_range(start='2020-01-01', periods=len(self.train_data), freq='H')[-1]
             future_dates = pd.date_range(start=last_date + pd.Timedelta(hours=1), periods=horizon, freq='H')
             future_df = pd.DataFrame({'ds': future_dates})
-            
+
             forecast = self.model.predict(future_df)
-            return forecast['yhat'].values
-            
+            predictions = forecast['yhat'].values
+
+            # Sanity check predictions
+            if np.any(np.isnan(predictions)) or np.any(np.isinf(predictions)):
+                return np.full(horizon, self.last_value)
+
+            return predictions
+
         except Exception as e:
-            return np.full(horizon, self.train_data[-1])
+            return np.full(horizon, self.last_value)
 
 class LSTMMethod(BaselineMethod):
     """LSTM neural network forecasting method"""
@@ -585,7 +670,7 @@ class NBEATSMethod(BaselineMethod):
     def __init__(self, seq_len: int = 96, pred_len: int = 24, stack_types=('generic', 'generic'), num_blocks=3, num_layers=4, layer_size=256):
         super().__init__("N_BEATS")
         self.seq_len = seq_len
-        self.pred_len = pred_len
+        self.pred_len = pred_len  # This will be updated during fit
         self.stack_types = stack_types
         self.num_blocks = num_blocks
         self.num_layers = num_layers
@@ -594,6 +679,7 @@ class NBEATSMethod(BaselineMethod):
         self.model = None
         self.scaler_mean = 0
         self.scaler_std = 1
+        self.last_value = None
 
     def _create_model(self):
         """Create N-BEATS model"""
@@ -684,16 +770,33 @@ class NBEATSMethod(BaselineMethod):
         if not self.is_fitted:
             raise ValueError("Model must be fitted before prediction")
 
-        if hasattr(self, 'last_value'):
+        if self.model is None or self.last_value is not None:
             return np.full(horizon, self.last_value)
 
         try:
             self.model.eval()
-            with torch.no_grad():
-                input_seq = torch.FloatTensor(self.train_data[-self.seq_len:]).unsqueeze(0).to(self.device)
-                predictions = self.model(input_seq).squeeze().cpu().numpy()
+            all_predictions = []
+            current_seq = self.train_data[-self.seq_len:].copy()
 
-            predictions = predictions[:horizon]
+            # Iterative prediction for long horizons
+            remaining_horizon = horizon
+            while remaining_horizon > 0:
+                with torch.no_grad():
+                    input_seq = torch.FloatTensor(current_seq[-self.seq_len:]).unsqueeze(0).to(self.device)
+                    batch_predictions = self.model(input_seq).squeeze().cpu().numpy()
+
+                # Take only what we need
+                steps_to_take = min(len(batch_predictions), remaining_horizon)
+                all_predictions.extend(batch_predictions[:steps_to_take])
+
+                # Update sequence for next iteration
+                if remaining_horizon > steps_to_take:
+                    current_seq = np.concatenate([current_seq, batch_predictions[:steps_to_take]])
+
+                remaining_horizon -= steps_to_take
+
+            # Denormalize predictions
+            predictions = np.array(all_predictions[:horizon])
             predictions = predictions * self.scaler_std + self.scaler_mean
             return predictions
 
@@ -825,6 +928,7 @@ class InformerMethod(BaselineMethod):
         self.model = None
         self.scaler_mean = 0
         self.scaler_std = 1
+        self.last_value = None
 
     def _create_model(self):
         """Create Informer model"""
@@ -898,17 +1002,39 @@ class InformerMethod(BaselineMethod):
         if not self.is_fitted:
             raise ValueError("Model must be fitted before prediction")
 
-        if hasattr(self, 'last_value'):
+        if self.model is None or self.last_value is not None:
             return np.full(horizon, self.last_value)
 
         try:
             self.model.eval()
-            with torch.no_grad():
-                input_seq = torch.FloatTensor(self.train_data[-self.seq_len:]).unsqueeze(0).unsqueeze(-1).to(self.device)
-                decoder_input = torch.cat([input_seq[:, -self.pred_len//2:, :], torch.zeros(1, self.pred_len - self.pred_len//2, 1).to(self.device)], dim=1)
-                predictions = self.model(input_seq, decoder_input).squeeze().cpu().numpy()
+            all_predictions = []
+            current_seq = self.train_data[-self.seq_len:].copy()
 
-            predictions = predictions[:horizon]
+            # Iterative prediction for long horizons
+            remaining_horizon = horizon
+            while remaining_horizon > 0:
+                with torch.no_grad():
+                    input_seq = torch.FloatTensor(current_seq[-self.seq_len:]).unsqueeze(0).unsqueeze(-1).to(self.device)
+                    decoder_input = torch.cat([input_seq[:, -self.pred_len//2:, :],
+                                             torch.zeros(1, self.pred_len - self.pred_len//2, 1).to(self.device)], dim=1)
+                    batch_predictions = self.model(input_seq, decoder_input).squeeze().cpu().numpy()
+
+                # Handle scalar output
+                if batch_predictions.ndim == 0:
+                    batch_predictions = np.array([batch_predictions])
+
+                # Take only what we need
+                steps_to_take = min(len(batch_predictions), remaining_horizon)
+                all_predictions.extend(batch_predictions[:steps_to_take])
+
+                # Update sequence for next iteration
+                if remaining_horizon > steps_to_take:
+                    current_seq = np.concatenate([current_seq, batch_predictions[:steps_to_take]])
+
+                remaining_horizon -= steps_to_take
+
+            # Denormalize predictions
+            predictions = np.array(all_predictions[:horizon])
             predictions = predictions * self.scaler_std + self.scaler_mean
             return predictions
 

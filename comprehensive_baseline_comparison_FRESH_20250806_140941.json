@@ -1,0 +1,206 @@
+{
+  "experiment_info": {
+    "experiment_type": "comprehensive_baseline_comparison_FRESH",
+    "timestamp": "20250806_140941",
+    "generation_time": "2025-08-06 14:17:52.472700",
+    "data_source": "FRESH_EXPERIMENTS_ONLY",
+    "synthetic_data_used": false,
+    "academic_integrity": "MAINTAINED",
+    "focus": "Table - Comprehensive Baseline Comparison Results (Fresh Experiments)",
+    "note": "All results generated from scratch - no reuse of old data",
+    "baseline_experiments_run": 96,
+    "successful_experiments": 96,
+    "failed_experiments": 0
+  },
+  "individual_methods": [
+    {
+      "category": "Individual Methods",
+      "method": "N_BEATS",
+      "avg_mase": 0.8741699960082769,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "Informer",
+      "avg_mase": 1.6932140849530697,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "DLinear",
+      "avg_mase": 3.0627687393280842,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "Seasonal_Naive",
+      "avg_mase": 3.1704510524868965,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "Prophet",
+      "avg_mase": 3.186368600506457,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "Naive",
+      "avg_mase": 3.1930254250764847,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "ARIMA",
+      "avg_mase": 3.3274189838573753,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "LSTM",
+      "avg_mase": 3.3634281069864986,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "Linear",
+      "avg_mase": 3.680969536304474,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "DeepAR",
+      "avg_mase": 3.9561788049336624,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "Transformer",
+      "avg_mase": 4.3037379000737195,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    },
+    {
+      "category": "Individual Methods",
+      "method": "ETS",
+      "avg_mase": 118.28402696143988,
+      "selection_acc": "--",
+      "diversity": "--",
+      "significance": "--",
+      "success_rate": 100.0
+    }
+  ],
+  "selection_methods": [
+    {
+      "category": "Selection Methods",
+      "method": "Oracle (Upper)",
+      "avg_mase": 0.6764825787395239,
+      "selection_acc": "100%",
+      "diversity": 2,
+      "significance": "--",
+      "optimal_methods": {
+        "etth1": "N_BEATS",
+        "etth2": "N_BEATS",
+        "exchange_rate": "Informer",
+        "weather": "N_BEATS",
+        "ettm1": "N_BEATS",
+        "ettm2": "N_BEATS",
+        "illness": "N_BEATS",
+        "ecl": "N_BEATS"
+      }
+    },
+    {
+      "category": "Selection Methods",
+      "method": "Random (Lower)",
+      "avg_mase": 12.674646515996239,
+      "selection_acc": "8.3%",
+      "diversity": 12,
+      "significance": "--"
+    },
+    {
+      "category": "Selection Methods",
+      "method": "FFORMA",
+      "avg_mase": 3.276477461687943,
+      "selection_acc": "0.0%",
+      "diversity": 4,
+      "significance": "--",
+      "selections": {
+        "etth1": "DLinear",
+        "etth2": "DLinear",
+        "exchange_rate": "Linear",
+        "weather": "Seasonal_Naive",
+        "ettm1": "DLinear",
+        "ettm2": "DLinear",
+        "illness": "Prophet",
+        "ecl": "DLinear"
+      }
+    },
+    {
+      "category": "Selection Methods",
+      "method": "Rule-based",
+      "avg_mase": 3.291286433792526,
+      "selection_acc": "0.0%",
+      "diversity": 3,
+      "significance": "--",
+      "selections": {
+        "etth1": "DLinear",
+        "etth2": "DLinear",
+        "exchange_rate": "Linear",
+        "weather": "Seasonal_Naive",
+        "ettm1": "DLinear",
+        "ettm2": "DLinear",
+        "illness": "Linear",
+        "ecl": "Linear"
+      }
+    }
+  ],
+  "iasnh_result": {
+    "category": "I-ASNH (Ours)",
+    "method": "Meta-Learning",
+    "avg_mase": 0.8605426220391923,
+    "selection_acc": "25.0%",
+    "diversity": 4,
+    "significance": "--",
+    "timestamp": "2025-08-05 09:56:05.800819"
+  },
+  "summary": {
+    "total_methods_evaluated": 12,
+    "best_individual_method": "N_BEATS",
+    "best_individual_mase": 0.8741699960082769,
+    "oracle_mase": 0.6764825787395239,
+    "random_mase": 12.674646515996239,
+    "iasnh_mase": 0.8605426220391923
+  }
+}

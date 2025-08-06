@@ -16,7 +16,7 @@ type: "manual"
 * **Always use local conda Python environment** – Stick to conda for package management
 * **For GPU work only**: Use `module load cuda/12.1` when CUDA is required
 * **Consistent environment** – Use the same Python environment across all development
-* **Package management** – Use `conda install` or `pip install` within conda environment
+* **Package management** – Always use `pip install` within conda environment
 
 ### **3. File Management**
 
