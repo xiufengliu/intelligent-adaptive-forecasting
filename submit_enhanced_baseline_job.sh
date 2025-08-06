@@ -12,7 +12,7 @@
 # Enhanced Comprehensive Baseline Comparison Job for KDD-Quality Results
 # Implements all fixes and improvements for publication-ready evaluation
 
-echo "🚀 Starting Enhanced Comprehensive Baseline Comparison for KDD-Quality Results"
+echo "Starting Enhanced Comprehensive Baseline Comparison for KDD-Quality Results"
 echo "Job ID: $LSB_JOBID"
 echo "Host: $(hostname)"
 echo "Date: $(date)"
@@ -60,17 +60,17 @@ rm -f enhanced_baseline_comparison_*.json
 rm -f enhanced_baseline_comparison_*.log
 
 # Validate enhanced baseline methods before full run
-echo "🧪 Validating enhanced baseline methods..."
+echo "Validating enhanced baseline methods..."
 timeout 300 python3 test_enhanced_baselines.py
 if [ $? -eq 0 ]; then
-    echo "✅ All enhanced baseline methods validated successfully"
+    echo "All enhanced baseline methods validated successfully"
 else
-    echo "❌ Baseline validation failed"
+    echo "Baseline validation failed"
     exit 1
 fi
 
 echo "=" * 80
-echo "🚀 Starting Enhanced Comprehensive Baseline Comparison"
+echo "Starting Enhanced Comprehensive Baseline Comparison"
 echo "=" * 80
 
 # Run enhanced comprehensive evaluation with timeout (7 hour timeout for comprehensive experiments)
@@ -78,9 +78,9 @@ timeout 25200 python3 enhanced_baseline_comparison.py
 
 # Check if the job completed successfully
 if [ $? -eq 0 ]; then
-    echo "✅ Enhanced baseline comparison completed successfully!"
+    echo "Enhanced baseline comparison completed successfully!"
 else
-    echo "❌ Enhanced baseline comparison failed or timed out"
+    echo "Enhanced baseline comparison failed or timed out"
 fi
 
 # Display results summary
@@ -90,7 +90,7 @@ echo "=" * 80
 
 # Check for results files
 if ls enhanced_baseline_comparison_*.json 1> /dev/null 2>&1; then
-    echo "✅ Results files found:"
+    echo "Results files found:"
     ls -la enhanced_baseline_comparison_*.json
     
     # Show brief summary from the latest results file
@@ -114,7 +114,7 @@ except Exception as e:
     print(f'Error reading results: {e}')
 "
 else
-    echo "❌ No results files found"
+    echo "No results files found"
 fi
 
 # Check for log files
