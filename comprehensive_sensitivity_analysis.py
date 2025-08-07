@@ -26,7 +26,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'models'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
 
 from real_iasnh_framework import RealIASNHFramework
-from evaluation_metrics import calculate_mase
+from evaluation_metrics import calculate_basic_metrics
 
 warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -150,7 +150,8 @@ class ComprehensiveSensitivityAnalysis:
             X_flat = X.reshape(X.shape[0], -1)
             model.fit(X_flat[:-100], y[:-100])
             pred = model.predict(X_flat[-100:])
-            return calculate_mase(y[-100:], pred, y[:-100])
+            metrics = calculate_basic_metrics(pred, y[-100:])
+            return metrics['mase']
             
         elif method == 'LSTM':
             # Simple LSTM implementation
