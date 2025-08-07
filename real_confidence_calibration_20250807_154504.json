@@ -1,0 +1,79 @@
+{
+  "experiment_metadata": {
+    "timestamp": "2025-08-07 15:45:04",
+    "total_predictions": 80,
+    "datasets_used": [
+      "ETTh1",
+      "ETTh2",
+      "ETTm1",
+      "ETTm2",
+      "Exchange_Rate",
+      "Weather",
+      "Illness",
+      "ECL"
+    ],
+    "method_pool": [
+      "Linear",
+      "LSTM",
+      "N_BEATS",
+      "DLinear",
+      "Transformer"
+    ],
+    "experiment_type": "real_data_simplified"
+  },
+  "calibration_metrics": {
+    "bin_statistics": [
+      {
+        "range": "[0.0, 0.2)",
+        "predicted": 0.086,
+        "actual": 0.2,
+        "count": 20,
+        "gap": 0.114
+      },
+      {
+        "range": "[0.2, 0.4)",
+        "predicted": 0.0,
+        "actual": 0.0,
+        "count": 0,
+        "gap": 0.0
+      },
+      {
+        "range": "[0.4, 0.6)",
+        "predicted": 0.553,
+        "actual": 0.2,
+        "count": 60,
+        "gap": 0.353
+      },
+      {
+        "range": "[0.6, 0.8)",
+        "predicted": 0.0,
+        "actual": 0.0,
+        "count": 0,
+        "gap": 0.0
+      },
+      {
+        "range": "[0.8, 1.0]",
+        "predicted": 0.0,
+        "actual": 0.0,
+        "count": 0,
+        "gap": 0.0
+      }
+    ],
+    "ece": 0.294,
+    "brier_score": 0.265,
+    "total_predictions": 80
+  },
+  "predictions_summary": {
+    "total_count": 80,
+    "by_dataset": {
+      "ETTh1": 10,
+      "ETTh2": 10,
+      "ETTm1": 10,
+      "ETTm2": 10,
+      "Exchange_Rate": 10,
+      "Weather": 10,
+      "Illness": 10,
+      "ECL": 10
+    }
+  }
+}

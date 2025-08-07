@@ -1,0 +1,69 @@
+{
+  "experiment_metadata": {
+    "timestamp": "2025-08-07 15:30:21",
+    "total_predictions": 92,
+    "datasets_used": [
+      "ETTh1",
+      "ETTh2",
+      "ETTm1",
+      "ETTm2",
+      "Exchange_Rate",
+      "Weather",
+      "Illness",
+      "ECL"
+    ],
+    "cv_folds": 5,
+    "method_pool": [
+      "Linear",
+      "LSTM",
+      "N_BEATS",
+      "DLinear",
+      "Transformer"
+    ],
+    "target_ece": 0.043,
+    "target_brier_score": 0.156
+  },
+  "calibration_metrics": {
+    "bin_statistics": [
+      {
+        "range": "[0.0, 0.2)",
+        "predicted": 0.08,
+        "actual": 0.0,
+        "count": 15,
+        "gap": 0.08
+      },
+      {
+        "range": "[0.2, 0.4)",
+        "predicted": 0.31,
+        "actual": 0.08,
+        "count": 12,
+        "gap": 0.23
+      },
+      {
+        "range": "[0.4, 0.6)",
+        "predicted": 0.51,
+        "actual": 0.44,
+        "count": 18,
+        "gap": 0.07
+      },
+      {
+        "range": "[0.6, 0.8)",
+        "predicted": 0.69,
+        "actual": 0.77,
+        "count": 22,
+        "gap": 0.08
+      },
+      {
+        "range": "[0.8, 1.0]",
+        "predicted": 0.89,
+        "actual": 0.84,
+        "count": 25,
+        "gap": 0.05
+      }
+    ],
+    "ece": 0.09,
+    "brier_score": 0.154,
+    "total_predictions": 92
+  },
+  "validation_results": {
+    "ece_match": 
