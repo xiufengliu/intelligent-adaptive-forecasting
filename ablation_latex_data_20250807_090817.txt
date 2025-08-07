@@ -1,0 +1,17 @@
+% Ablation Study Table Data
+% Configuration & Selection Acc. & Avg. MASE & Avg. Confidence & Training Time (s) & Performance Drop
+\textbf{Full I-ASNH} & \textbf{100.0\%} & \textbf{0.727} & \textbf{0.683} & \textbf{540} & \textbf{—} \\
+w/o Confidence & 75.0\% & 0.844 & 0.500 & 170 & -0.0pp \\
+w/o Attention & 87.5\% & 0.805 & 0.666 & 232 & -0.0pp \\
+w/o Statistical & 75.0\% & 0.868 & 0.682 & 20 & -0.0pp \\
+w/o Convolution & 100.0\% & 0.727 & 0.671 & 209 & -0.0pp \\
+w/o Fusion & 87.5\% & 0.809 & 0.500 & 169 & -0.0pp \\
+
+% Feature Combination Table Data
+% Feature Combination & Selection Acc. & Avg. MASE & Avg. Confidence & Training Time (s)
+Statistical Only & 0.0\% & 0.898 & 0.647 & 179 \\
+Convolutional Only & 0.0\% & 0.999 & 0.691 & 16 \\
+Attention Only & 0.0\% & 0.911 & 0.700 & 21 \\
+Statistical + Convolutional & 87.5\% & 0.732 & 0.664 & 198 \\
+Statistical + Attention & 0.0\% & 0.747 & 0.680 & 200 \\
+Convolutional + Attention & 0.0\% & 1.083 & 0.695 & 37 \\
