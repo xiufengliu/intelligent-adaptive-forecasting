@@ -156,6 +156,9 @@ wandb/
 *.swo
 *~
 
+# Augment AI assistant files
+.augment/
+
 # OS files
 .DS_Store
 .DS_Store?
