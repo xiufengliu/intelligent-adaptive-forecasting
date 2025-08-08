@@ -141,7 +141,7 @@ data/
 *.npy
 
 # Experiment outputs
-experiments/
+# experiments/  # tracked: experiment scripts live here
 checkpoints/
 logs/
 results/
@@ -199,6 +199,7 @@ paper/
 *.pdf
 
 # Backup directories (exclude old experiments)
+backup/
 backup_old_experiments/
 backup_*/
 

@@ -1,123 +1,128 @@
-# Intelligent Adaptive Forecasting Framework
+# CaMS: Calibrated Meta-Selection for Time Series Forecasting
 
-## 🎯 Overview
+A novel meta-learning framework for automatic forecasting method selection using neural networks and reinforcement learning.
 
-This repository contains the implementation of **I-ASNH (Intelligent Adaptive Selection with Neural Hierarchies)**, a novel meta-learning framework for intelligent time series forecasting method selection. The framework addresses the critical challenge of automatically selecting the most appropriate forecasting method for different time series datasets.
+## Project Structure
 
-## 🏆 Key Contributions
-
-- **Intelligent Method Selection**: Automated selection of optimal forecasting methods using meta-learning
-- **Neural Hierarchical Architecture**: Novel neural network design for method selection
-- **Comprehensive Baseline Comparison**: Extensive evaluation against 9+ baseline methods
-- **Academic Integrity**: All results generated from fresh experiments with real datasets
-
-## �� Quick Start
-
-### Prerequisites
-```bash
-pip install torch torchvision scikit-learn scipy numpy pandas statsmodels
-pip install pmdarima prophet  # For ARIMA and Prophet baselines
+```
+├── src/                           # Source code
+│   ├── cams/                     # Core CaMS framework
+│   ├── experiments/              # Experiment scripts
+│   ├── analysis/                 # Analysis and evaluation
+│   ├── baselines/               # Baseline methods
+│   └── utils/                   # Utility functions
+├── data/                        # Dataset storage
+├── jobs/                        # Cluster job scripts
+├── config/                      # Configuration files
+├── docs/                        # Documentation
+├── scripts/                     # Utility scripts
+└── archive/                     # Archived results and papers
 ```
 
-### Running the Experiments
+## Quick Start
 
-#### 1. Core I-ASNH Method Selection
+### Core Experiments
 ```bash
-python3 run_core_iasnh_method_selection.py
+# Core method selection
+python run_cams_core.py
+
+# Comprehensive baseline comparison
+python run_baseline_comparison.py
+
+# Complete CaMS with reinforcement learning
+python run_cams_complete.py
 ```
 
-#### 2. Comprehensive Baseline Comparison
+### Alternative: Module Execution
 ```bash
-python3 run_comprehensive_baseline_comparison.py
+# Core method selection
+python -m src.experiments.cams_core_method_selection
+
+# Comprehensive baseline comparison
+python -m src.experiments.baseline_comparison_comprehensive
+
+# Complete CaMS with reinforcement learning
+python -m src.experiments.cams_complete_with_reinforcement_learning
 ```
 
-#### 3. GPU Cluster Deployment
+### Analysis
 ```bash
-# Submit to job scheduler
-bsub < submit_comprehensive_baseline_job.sh
+# Ablation study
+python -m src.analysis.ablation_study
 
-# Monitor progress
-bjobs
-tail -f fresh_comprehensive_baseline_*.out
+# Confidence calibration
+python -m src.analysis.confidence_calibration
+
+# Sensitivity analysis
+python -m src.analysis.sensitivity_analysis
+
+# Statistical significance testing
+python -m src.analysis.statistical_significance
+
+# Paper visualizations
+python -m src.analysis.paper_visualizations
+
+# RL vs Neural comparison
+python -m src.analysis.rl_vs_neural_comparison
 ```
 
-## 📊 Experimental Setup
+### Cluster Jobs
 
-### Datasets
-- **ETT Family**: ETTh1, ETTh2, ETTm1, ETTm2 (Electricity Transforming Temperature)
-- **Financial**: Exchange Rate
-- **Environmental**: Weather
-- **Healthcare**: Illness
-- **Energy**: ECL (Electricity Consuming Load)
-
-### Baseline Methods
-- **Statistical**: Naive, Seasonal Naive, Linear, ARIMA, ETS, Prophet
-- **Neural**: DLinear, LSTM, Transformer, N-BEATS, DeepAR, Informer
-
-### Selection Methods
-- **Oracle**: Theoretical upper bound (perfect selection)
-- **Random**: Lower bound baseline
-- **FFORMA**: Feature-based meta-learning approach
-- **Rule-based**: Simple heuristic rules
-- **I-ASNH (Ours)**: Intelligent adaptive selection with neural hierarchies
-
-## 🔬 Key Results
-
-### Method Selection Performance
-- **I-ASNH Accuracy**: 25.0% (vs 12.5% random baseline)
-- **I-ASNH MASE**: 0.861 (competitive with best individual methods)
-- **Method Diversity**: 4 unique methods selected across datasets
-
-### Individual Method Rankings
-1. **N-BEATS**: 0.701 MASE (best individual method)
-2. **DLinear**: 0.750 MASE
-3. **Linear**: 0.858 MASE
-4. **LSTM**: 0.912 MASE
-
-## 🔒 Academic Integrity
-
-This repository maintains strict academic integrity:
-
-- ✅ **No Synthetic Data**: All results from real experimental runs
-- ✅ **Fresh Experiments**: No reuse of cached or backup results
-- ✅ **Reproducible**: Complete experimental pipeline provided
-- ✅ **Transparent**: All code and methodologies open source
-
-### Removed Components
-- ❌ **RL Agents**: Removed due to synthetic data concerns
-- ❌ **Placeholder Values**: All eliminated for academic integrity
-- ❌ **Backup Dependencies**: No reliance on old cached results
-
-## 🛠️ Development
-
-### Validation
+#### Core Experiments
 ```bash
-python3 validate_fresh_experiment_setup.py
+# Core method selection experiment
+bsub < jobs/core_method_selection.sh
+
+# Comprehensive baseline comparison
+bsub < jobs/baseline_comparison.sh
+
+# Complete CaMS with RL integration
+bsub < jobs/cams_complete_experiment.sh
 ```
 
-## 📄 Citation
+#### Analysis Jobs
+```bash
+# Ablation study
+bsub < jobs/ablation_study.sh
 
-If you use this code in your research, please cite:
+# Sensitivity analysis
+bsub < jobs/sensitivity_analysis.sh
 
+# Confidence calibration
+bsub < jobs/confidence_calibration.sh
+
+# RL experiments
+bsub < jobs/rl_experiments.sh
+```
+
+## Housekeeping
+
+Before running experiments on cluster:
+```bash
+# Clean up artifacts (dry run)
+bash scripts/housekeeping.sh
+
+# Apply cleanup and keep 3 backups
+bash scripts/housekeeping.sh --apply --keep 3
+
+# Automated pre-cluster workflow
+bash scripts/pre_cluster_submit.sh --submit jobs/jobs_cams_complete_rl.sh --keep 3
+```
+
+## Installation
+
+```bash
+pip install -r config/requirements.txt
+```
+
+## Citation
+
+If you use this code, please cite our paper:
 ```bibtex
-@article{liu2024intelligent,
-  title={Intelligent Adaptive Selection with Neural Hierarchies for Time Series Forecasting},
-  author={Liu, Xiuli and [Co-authors]},
-  journal={[Conference/Journal Name]},
+@article{cams2024,
+  title={CaMS: Calibrated Meta-Selection for Time Series Forecasting},
+  author={Your Name},
+  journal={Conference Proceedings},
   year={2024}
 }
 ```
-
-## 📞 Contact
-
-- **Author**: Xiuli Liu
-- **Email**: xiuli@dtu.dk
-- **Institution**: Technical University of Denmark (DTU)
-
-## 📜 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-**Note**: This repository contains the complete implementation for top-conference submission with maintained academic integrity and reproducible results.
